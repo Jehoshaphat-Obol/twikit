@@ -4,24 +4,11 @@ from datetime import datetime
 import csv
 from configparser import ConfigParser
 from random import randint
+import asyncio
 
 
 MINIMUM_TWEETS = 10
-QUERY = '(from:elonmusk) lang:en until:2020-01-01 since:2018-01-01'
-
-
-def get_tweets(tweets):
-    if tweets is None:
-        #* get tweets
-        print(f'{datetime.now()} - Getting tweets...')
-        tweets = client.search_tweet(QUERY, product='Top')
-    else:
-        wait_time = randint(5, 10)
-        print(f'{datetime.now()} - Getting next tweets after {wait_time} seconds ...')
-        time.sleep(wait_time)
-        tweets = tweets.next()
-
-    return tweets
+QUERY = '(from:elonmusk)'
 
 
 #* login credentials
@@ -37,14 +24,32 @@ with open('tweets.csv', 'w', newline='') as file:
     writer.writerow(['Tweet_count', 'Username', 'Text', 'Created At', 'Retweets', 'Likes'])
 
 
-
 #* authenticate to X.com
 #! 1) use the login credentials. 2) use cookies.
-client = Client(language='en-US')
-# client.login(auth_info_1=username, auth_info_2=email, password=password)
-# client.save_cookies('cookies.json')
 
-client.load_cookies('cookies.json')
+client = Client(language='en-US')
+
+async def login_and_save():
+    global client
+    # await client.login(auth_info_1=username, auth_info_2=email, password=password)  # Await login
+    # client.save_cookies('cookies.json')
+    client.load_cookies('cookies.json')
+
+# Call the async function
+asyncio.run(login_and_save())
+
+def get_tweets(tweets):
+    if tweets is None:
+        #* get tweets
+        print(f'{datetime.now()} - Getting tweets...')
+        tweets = client.search_tweet(QUERY, product='Top')
+    else:
+        wait_time = randint(5, 10)
+        print(f'{datetime.now()} - Getting next tweets after {wait_time} seconds ...')
+        time.sleep(wait_time)
+        tweets = tweets.next()
+
+    return tweets
 
 tweet_count = 0
 tweets = None
@@ -52,7 +57,7 @@ tweets = None
 while tweet_count < MINIMUM_TWEETS:
 
     try:
-        tweets = get_tweets(tweets)
+        tweets = asyncio.run(get_tweets(tweets))
     except TooManyRequests as e:
         rate_limit_reset = datetime.fromtimestamp(e.rate_limit_reset)
         print(f'{datetime.now()} - Rate limit reached. Waiting until {rate_limit_reset}')
@@ -65,6 +70,7 @@ while tweet_count < MINIMUM_TWEETS:
         break
 
     for tweet in tweets:
+        print(vars(tweet))
         tweet_count += 1
         tweet_data = [tweet_count, tweet.user.name, tweet.text, tweet.created_at, tweet.retweet_count, tweet.favorite_count]
         
